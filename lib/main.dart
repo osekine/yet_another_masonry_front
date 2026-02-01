@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 final randomGenerator = Random();
 final contentHeight = <double>[];
 void main() {
-  for (int i = 0; i < 20; ++i) {
+  for (int i = 0; i < 200; ++i) {
     contentHeight.add(randomGenerator.nextDouble() * 300 + 250);
   }
   runApp(const MainApp());
@@ -71,13 +71,14 @@ class MasonGridDelegate extends SliverGridDelegate {
   final List<double> contentHeight;
   final double contentWidth;
 
+  SliverGridLayout? _grid;
+
   MasonGridDelegate({required this.contentHeight, required this.contentWidth});
 
   @override
   SliverGridLayout getLayout(SliverConstraints constraints) {
     final count = max(constraints.crossAxisExtent ~/ contentWidth, 2);
-
-    return MasonGridLayout(
+    _grid ??= MasonGridLayout(
       contentHeight: contentHeight,
       crossAxisCount: count,
       maxCrossAxisExtent: min(
@@ -86,12 +87,18 @@ class MasonGridDelegate extends SliverGridDelegate {
       ),
       viewportHeight: constraints.viewportMainAxisExtent,
     );
+
+    return _grid!;
   }
 
   @override
-  bool shouldRelayout(MasonGridDelegate oldDelegate) =>
-      oldDelegate.contentHeight != contentHeight ||
-      oldDelegate.contentWidth != contentWidth;
+  bool shouldRelayout(MasonGridDelegate oldDelegate) {
+    final relayout =
+        oldDelegate.contentHeight != contentHeight ||
+        oldDelegate.contentWidth != contentWidth;
+    if (relayout) _grid = null;
+    return relayout;
+  }
 }
 
 class MasonGridLayout extends SliverGridLayout {
@@ -106,75 +113,67 @@ class MasonGridLayout extends SliverGridLayout {
     required this.maxCrossAxisExtent,
     required this.viewportHeight,
   }) {
-    _childHeightPositions = <double>[];
-    for (int i = 0; i < crossAxisCount; ++i) {
-      _childHeightPositions.add(0);
-    }
-    for (int i = crossAxisCount; i < crossAxisCount * 2; ++i) {
-      _childHeightPositions.add(contentHeight[i - crossAxisCount]);
-    }
-
-    for (int i = crossAxisCount * 2; i < contentHeight.length; ++i) {
-      _childHeightPositions.add(
-        contentHeight[i - crossAxisCount] +
-            _childHeightPositions[i - crossAxisCount],
-      );
-    }
+    _columnHeights = List.generate(crossAxisCount, (i) => 0.0, growable: false);
   }
 
-  late final List<double> _childHeightPositions;
+  late final List<double> _columnHeights;
+  final List<_GridPosition> _childPositions = [];
 
   @override
   double computeMaxScrollOffset(int childCount) {
-    double maxHeight = 0;
-    for (int i = 1; i <= crossAxisCount; ++i) {
-      final length = _childHeightPositions.length;
-      maxHeight = max(
-        maxHeight,
-        _childHeightPositions[length - i] + contentHeight[length - i],
-      );
-    }
-    maxHeight += 16;
-
-    return maxHeight;
+    return _columnHeights.reduce(max);
   }
 
   @override
   SliverGridGeometry getGeometryForChildIndex(int index) {
+    if (index >= _childPositions.length) {
+      final columnIndex = _columnHeights.indexOf(_columnHeights.reduce(min));
+      final scrollOffset = _columnHeights[columnIndex];
+      _columnHeights[columnIndex] += contentHeight[index];
+
+      _childPositions.add(
+        _GridPosition(column: columnIndex, scrollOffset: scrollOffset),
+      );
+    }
+
+    final scrollOffset = _childPositions[index].scrollOffset;
+    final columnIndex = _childPositions[index].column;
+
     final childGeometry = SliverGridGeometry(
-      scrollOffset: _childHeightPositions[index],
-      crossAxisOffset: (index % crossAxisCount) * maxCrossAxisExtent,
+      scrollOffset: scrollOffset,
+      crossAxisOffset: columnIndex * maxCrossAxisExtent,
       mainAxisExtent: contentHeight[index],
       crossAxisExtent: maxCrossAxisExtent,
     );
+
     return childGeometry;
   }
 
   @override
   int getMaxChildIndexForScrollOffset(double scrollOffset) {
+    if (_childPositions.isEmpty) return 6;
     return min(
-      _getMaxIndexForScroll(scrollOffset + viewportHeight * 1.25) +
-          crossAxisCount,
+      _getMaxIndexForScroll(scrollOffset) + crossAxisCount,
       contentHeight.length - 1,
     );
   }
 
   int _getMaxIndexForScroll(double scrollOffset) {
-    int lastIndex = 0;
-    // TODO(NLU): убрать перебор списка
-    while (lastIndex < contentHeight.length &&
-        scrollOffset > _childHeightPositions[lastIndex]) {
-      lastIndex++;
-    }
+    final lastIndex = _childPositions.lastIndexWhere(
+      (el) => el.scrollOffset < scrollOffset,
+    );
 
-    return lastIndex + lastIndex % crossAxisCount;
+    return lastIndex;
   }
 
   @override
-  int getMinChildIndexForScrollOffset(double scrollOffset) {
-    return max(
-      _getMaxIndexForScroll(scrollOffset - viewportHeight / 2) - crossAxisCount,
-      0,
-    );
-  }
+  int getMinChildIndexForScrollOffset(double scrollOffset) =>
+      max(_getMaxIndexForScroll(scrollOffset - viewportHeight / 2), 0);
+}
+
+class _GridPosition {
+  final int column;
+  final double scrollOffset;
+
+  _GridPosition({required this.column, required this.scrollOffset});
 }
