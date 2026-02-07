@@ -77,14 +77,14 @@ class MasonGridDelegate extends SliverGridDelegate {
 
   @override
   SliverGridLayout getLayout(SliverConstraints constraints) {
-    final count = max(constraints.crossAxisExtent ~/ contentWidth, 2);
+    final screenWidth = constraints.crossAxisExtent;
+    final count = max(screenWidth ~/ contentWidth, 2);
+    final actualWidth = (screenWidth - contentWidth * count) / count + contentWidth;
     _grid ??= MasonGridLayout(
       contentHeight: contentHeight,
       crossAxisCount: count,
-      maxCrossAxisExtent: min(
-        contentWidth,
-        constraints.crossAxisExtent / count,
-      ),
+      maxCrossAxisExtent: 
+        actualWidth,
       viewportHeight: constraints.viewportMainAxisExtent,
     );
 
