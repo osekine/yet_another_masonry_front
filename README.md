@@ -35,6 +35,16 @@ Instead of relying on existing packages, this project explores how such a layout
 
  - Proper handling of orientation changes
 
+## Demonstration
+
+#### Medium Android Phone with different orientation
+
+![Android](https://github.com/osekine/yet_another_masonry_front/blob/main/assets/Android.gif)
+
+#### Change window size on macOs
+
+![macOs](https://github.com/osekine/yet_another_masonry_front/blob/main/assets/Mac.gif)
+
 # Architecture Overview
 ## High-level flow
 ```
